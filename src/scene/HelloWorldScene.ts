@@ -1,4 +1,4 @@
-import Phaser = require("phaser")
+import * as Phaser from "phaser"
 
 export default class HelloWorldScene extends Phaser.Scene
 {

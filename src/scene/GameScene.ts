@@ -1,10 +1,11 @@
-import Phaser = require("phaser");
+import * as Phaser from 'phaser';
+import Toast from 'phaser3-rex-plugins/templates/ui/toast/Toast';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 
 const GROUND_KEY = 'ground';
 const DUDE_KEY = 'dude'
 const BOMB = 'bomb'
-const COUNT_STARS = 15;
+const COUNT_STARS = 5;
 export default class GameScene extends Phaser.Scene{
     
     constructor(){
@@ -12,6 +13,8 @@ export default class GameScene extends Phaser.Scene{
         
     }
     rexUI: UIPlugin;  
+    toast;
+
     player:Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     cursors:Phaser.Types.Input.Keyboard.CursorKeys;
     platforms:Phaser.Physics.Arcade.StaticGroup;
@@ -22,14 +25,17 @@ export default class GameScene extends Phaser.Scene{
 
     scoreText:Phaser.GameObjects.Text;
     timerText:Phaser.GameObjects.Text;
+    BestTimeText:Phaser.GameObjects.Text;
     modalRecordText:Phaser.GameObjects.Text;
     modalSesionText:Phaser.GameObjects.Text;
 
     modalRecord:number = 0;
     record:number = 0;
 
+    curentLevel:number = 0
+    level:Array<number> = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
     unpresJump:boolean = false;
-    isDouble:boolean = true;
+    jump:number = 0;
     bombs:Phaser.Physics.Arcade.Group;  
     
     timer:Phaser.Time.TimerEvent;
@@ -73,26 +79,28 @@ export default class GameScene extends Phaser.Scene{
                 this. player.setVelocityX(0);
                 this.player.anims.play('turn');
             }
+            if(this.player.body.touching.down) {
+                this.jump = 2;
+            }
             //Двойной прыжок если игрок в воздухе
-            if(this.cursors.up.isDown  && this.isDouble && Phaser.Input.Keyboard.JustDown (this.cursors.up) ) {
-                this.player.setVelocityY(-250);
-                this.isDouble = false;
-                
-            }
-            //Проверяем если игрок касаеться земли и нажата кнопка прыжка добавляем вертикальную скорось
-            if (this.cursors.up.isDown && this.player.body.touching.down){
+            if (Phaser.Input.Keyboard.JustUp(this.cursors.up) && (this.jump > 0)){
                 this.player.setVelocityY(-330); 
-                this.isDouble = true;          
-                 
+                this.jump--;
             }
+
+           
+            
+            //Проверяем если игрок касаеться земли и нажата кнопка прыжка добавляем вертикальную скорось
+            
             //Обновляем текс значение таймера
             this.timerText.setText(`Time: ${this.timer.getElapsedSeconds().toString().substr(0,4)}`);
-        
+            
         
     }
 
     create(){
-        
+        this.score = 0;
+        this.curentLevel = 0;
         this.add.image(400, 300, 'sky');
     	
         //Получаем класс управления 
@@ -108,10 +116,27 @@ export default class GameScene extends Phaser.Scene{
 
         this.scoreText = this.add.text(16,16,'score: 0',{fontSize:'32px'});
         this.timerText = this.add.text(16,60,'time: 0',{fontSize:'32px'});
+        this.BestTimeText = this.add.text(16,90, `Best time: ${this.level[this.curentLevel].toString().substr(0,5)}`,{fontSize:'32px'});
         
-        //Создаем таймер
         this.timer =  this.time.addEvent({loop:true});
+        this.toast =  this.rexUI.add.toast({
+            x:400,
+            y:300,
+            background: this.rexUI.add.roundRectangle(0, 0, 2, 2, 20, 0x260e04),
+            text: this.add.text(0,0,"",{fontSize:"24px"}),
+            space:{
+                left:20,
+                right:20,
+                top:20,
+                bottom:20
+            },
+            duration:{
+                in:250,
+                hold:3000,
+                out:250
+            }
 
+        });
         
     }
 
@@ -125,35 +150,16 @@ export default class GameScene extends Phaser.Scene{
         //Тригер при касании бомбы и игрока
         this.physics.add.collider(this.bombs,this.player,(bomb,player)=>{
             //Создаем всплывающее окно
-            let toast = this.rexUI.add.toast({
-                x:400,
-                y:300,
-                background: this.rexUI.add.roundRectangle(0, 0, 2, 2, 20, 0x260e04),
-                text: this.add.text(0,0,"",{fontSize:"24px"}),
-                space:{
-                    left:20,
-                    right:20,
-                    top:20,
-                    bottom:20
-                },
-                duration:{
-                    in:250,
-                    hold:5000,
-                    out:250
-                }
-
-            });
-            //Записываем время раунда
-            this.record = this.timer.getElapsedSeconds();
-            //Показываем окно в зависимости от времени
-            if(this.timer.getElapsedSeconds()< this.modalRecord || this.modalRecord == 0){
-
-                this.modalRecord = this.timer.getElapsedSeconds();
-
-                toast.showMessage(`BEST TIME: ${this.modalRecord.toString().substr(0,4)}\nCURRENT TIME: ${this.record.toString().toString().substr(0,5)}`);
-            } else {
-                toast.showMessage(`BEST TIME: ${this.modalRecord.toString().substr(0,5)}\nCURRENT TIME: ${this.record.toString().toString().substr(0,5)}`);
-            }
+            
+            
+            
+                    this.toast.showMessage(`GAME OVER\nLevel ${this.curentLevel+1}\n
+                    TIME ${this.timer.getElapsedSeconds().toString().substr(0,5)}\n`);
+               
+                
+                
+            
+               
             
             
             //Устанавливаем отенок для игрока
@@ -211,6 +217,17 @@ export default class GameScene extends Phaser.Scene{
         
     }
 
+    spawnBomb(){
+        //Спавним бомбу в противоположной стороне
+        let x = this.player.x < 400 ? Phaser.Math.Between(400,800) : Phaser.Math.Between(0,400)
+        let bomb = this.bombs.create(x,16,BOMB);
+
+        //Задаем колизию ко всем обьектам
+        bomb.setBounce(1);
+        bomb.setCollideWorldBounds(true);
+        bomb.setVelocity(Phaser.Math.Between(-200,200),20)
+    }
+
     createtStars(){
         //Если звезд больше 12 генерируем второй ряд на другой высоте
         if(COUNT_STARS > 12) {
@@ -254,23 +271,43 @@ export default class GameScene extends Phaser.Scene{
             //скрываем звезду
             (star as Phaser.Physics.Arcade.Sprite).disableBody(true,true);
             //увеличиваем рекорд и меняем текст рекорда
+            this.spawnBomb()
             this.score += 10;
             this.scoreText.setText(`Score: ${this.score}`);
             //Проверяем количество активных звезд если 0 спавним бомбу и звезды
             if (this.stars.countActive(true) === 0){
                 //активируем звезды на рамдомной высоте
+                
+                if((this.level[this.curentLevel] == 0)) {
+                    this.level[this.curentLevel] = this.timer.getElapsedSeconds();
+                    
+                } else if (this.level[this.curentLevel] > this.timer.getElapsedSeconds()) {
+                    this.level[this.curentLevel] = this.timer.getElapsedSeconds();
+                    
+                }
+                
+                console.log(this.curentLevel);
+                console.log(this.level);
+                this.physics.pause();
+                this.timer.paused = true;
+                this.toast.showMessage(`COMPLETE\nLevel ${this.curentLevel+1}\n
+                TIME ${this.timer.getElapsedSeconds().toString().substr(0,5)}\n
+                BEST TIME ${this.level[this.curentLevel].toString().substr(0,5)}`);
+                this.bombs.getChildren().map((bomb) => {bomb.destroy()});
+                this.curentLevel++
                 this.stars.children.iterate((child:Phaser.Physics.Arcade.Sprite)=>{
                     child.enableBody(true,child.x ,Phaser.Math.Between(0,300),true,true);
                 }); 
-                //Спавним бомбу в противоположной стороне
-                let x = this.player.x < 400 ? Phaser.Math.Between(400,800) : Phaser.Math.Between(0,400)
-                let bomb = this.bombs.create(x,16,BOMB);
-
-                //Задаем колизию ко всем обьектам
-                bomb.setBounce(1);
-                bomb.setCollideWorldBounds(true);
-                bomb.setVelocity(Phaser.Math.Between(-200,200),20)
+                this.time.delayedCall(3000,()=>{
+                    this.timer.reset({loop:true});
+                    this.physics.resume();
+                })
+                
+                
+                
+                
             }
         }, null, this);
     }
 }   
+

@@ -1,4 +1,4 @@
-import Phaser = require("phaser");
+import * as Phaser from "phaser";
 import HelloWorldScene from "./scene/HelloWorldScene";
 import GameScene from "./scene/GameScene";
 import UIPlugin from "phaser3-rex-plugins/templates/ui/ui-plugin";
